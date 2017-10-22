@@ -1,0 +1,17 @@
+apply plugin: 'earth.cube.github'
+
+version "1.0.0"
+
+github {
+	password = github_password
+	
+	release {
+		tagName = "1.0"
+		description = "Easy-Lockbox"
+	}
+
+	asset {
+		overwrite = true
+	}
+}
+
