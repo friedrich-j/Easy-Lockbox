@@ -7,7 +7,6 @@ import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Base64;
 import java.util.Map.Entry;
 import java.util.Properties;
 
@@ -17,11 +16,16 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.xml.bind.DatatypeConverter;
 
 public class LockBox {
+	
+	// D2Method.passphrase
+	
+	// java -cp /opt/tomcat/webapps/D2/WEB-INF/lib/easy-lockbox-1.0.0.jar:/opt/tomcat/config com.emc.clb.LockBox
 
 	private static SecretKeySpec createSecretKey(char[] password, byte[] salt, int iterationCount, int keyLength) throws NoSuchAlgorithmException, InvalidKeySpecException {
-		SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+		SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1"); // PBKDF2WithHmacSHA512
 		PBEKeySpec keySpec = new PBEKeySpec(password, salt, iterationCount, keyLength);
 		SecretKey keyTmp = keyFactory.generateSecret(keySpec);
 		return new SecretKeySpec(keyTmp.getEncoded(), "AES");
@@ -37,8 +41,8 @@ public class LockBox {
 		return base64Encode(iv) + ":" + base64Encode(cryptoText);
 	}
 
-	private static String base64Encode(byte[] bytes) {
-		return Base64.getEncoder().encodeToString(bytes);
+	protected static String base64Encode(byte[] bytes) {
+		return DatatypeConverter.printBase64Binary(bytes);
 	}
 
 	private static String decrypt(String string, SecretKeySpec key) throws GeneralSecurityException, IOException {
@@ -49,8 +53,8 @@ public class LockBox {
 		return new String(pbeCipher.doFinal(base64Decode(property)), "UTF-8");
 	}
 
-	private static byte[] base64Decode(String property) throws IOException {
-		return Base64.getDecoder().decode(property);
+	protected static byte[] base64Decode(String property) throws IOException {
+		return DatatypeConverter.parseBase64Binary(property);
 	}
 	
 
@@ -58,7 +62,7 @@ public class LockBox {
 	private SecretKeySpec _key;
 
 	public LockBox(String sFilePath, String sPassphrase) throws IOException {
-		InputStream is = getClass().getClassLoader().getResourceAsStream("easy_lockbox.properties");
+		InputStream is = getClass().getClassLoader().getResourceAsStream("D2.lockbox");
 		try {
 			_props.load(is);
 		}
@@ -68,7 +72,7 @@ public class LockBox {
 
 		byte[] salt = new String("fhkjzf489rno4").getBytes();
         try {
-			_key = createSecretKey(getClass().getCanonicalName().toCharArray(), salt, 1000, 127);
+			_key = createSecretKey(getClass().getCanonicalName().toCharArray(), salt, 1000, 128);
 		} catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
 			throw new IOException(e);
 		}
@@ -88,13 +92,20 @@ public class LockBox {
 
 	public void closeLockbox() {
 	}
+
+	public String encrypt(String s) throws UnsupportedEncodingException, GeneralSecurityException {
+		return encrypt(s, _key);
+	}
 	
+	public String decrypt(String s) throws GeneralSecurityException, IOException {
+		return decrypt(s, _key);
+	}
 	
 	public void printEncrypted() throws UnsupportedEncodingException, GeneralSecurityException {
 		for(Entry<Object, Object> e : _props.entrySet()) {
 			String s = (String) e.getValue();
 			if(s != null && s.length() != 0 && !s.startsWith("$enc$"))
-				s = "$enc$" + encrypt(s.substring(5), _key);
+				s = "$enc$" + encrypt(s, _key);
 				
 			System.out.println(e.getKey() + "=" + s);
 		}
